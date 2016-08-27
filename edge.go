@@ -10,15 +10,12 @@ import (
 // Img is the input image.
 // Image edges are detected using the Canny edge detection algorithm defined at
 // https://en.wikipedia.org/wiki/Canny_edge_detector .
-// All steps are implemented except the Gaussian filter step.
-func Edge(img image.Image, t int) image.Image {
+func Edge(img image.Image, t, b int) image.Image {
 
-	// TODO - Gaussian filter.
+	out := Gaussian(img, b)
 
-	hyp, deg := intencityGradient(img)
-
+	hyp, deg := intencityGradient(out)
 	max := nonMaximumSuppression(hyp, deg, img.Bounds().Max.X)
-	out := image.NewRGBA(img.Bounds())
 
 	for y, i := img.Bounds().Min.Y, 0; y < img.Bounds().Max.Y; y++ {
 		for x := img.Bounds().Min.X; x < img.Bounds().Max.X; x, i = x+1, i+1 {
