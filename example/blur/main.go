@@ -16,8 +16,7 @@ import (
 )
 
 var in = flag.String("in", "", "Path to input file.")
-var threshold = flag.Int("t", 100, "Edge strength threshold.")
-var blur = flag.Int("b", 0, "Blur count.")
+var blur = flag.Int("b", 10, "Blur count.")
 
 func main() {
 
@@ -33,7 +32,7 @@ func main() {
 		log.Fatalf("Failed to load input image: %v\n", err)
 	}
 
-	i := imaging.Edge(img, *threshold, *blur)
+	i := imaging.Gaussian(img, *blur)
 
 	out, err := os.OpenFile("out.png", os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0600)
 	if err != nil {
