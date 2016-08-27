@@ -2,7 +2,7 @@ package imaging
 
 import "image"
 
-// Gaussian returns a new image has been blured n times with the gaussian blur
+// Gaussian returns a new image has been blurred n times with the Gaussian blur
 func Gaussian(img image.Image, n int) *image.RGBA {
 
 	out := image.NewRGBA(img.Bounds())
