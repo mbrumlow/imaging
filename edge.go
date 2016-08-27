@@ -13,6 +13,8 @@ import (
 // All steps are implemented except the Gaussian filter step.
 func Edge(img image.Image, t int) image.Image {
 
+	// TODO - Gaussian filter.
+
 	hyp, deg := intencityGradient(img)
 
 	max := nonMaximumSuppression(hyp, deg, img.Bounds().Max.X)
