@@ -5,24 +5,31 @@ import (
 	"math"
 )
 
-// Edge returns a new image that has had all the edges within the given
-// threshold set to 0xFFFFFFFF.
-// Img is the input image.
-// Image edges are detected using the Canny edge detection algorithm defined at
-// https://en.wikipedia.org/wiki/Canny_edge_detector .
+// Edge returns a black-and-white image with detected edges drawn in white and
+// everything else black. Edges are found using the Canny edge detection
+// algorithm (https://en.wikipedia.org/wiki/Canny_edge_detector).
+//
+// t is the edge-strength threshold: only gradients stronger than t are kept as
+// edges, so a higher t keeps only stronger edges. b is the number of Gaussian
+// pre-blur passes applied before detection to reduce noise.
 func Edge(img image.Image, t, b int) image.Image {
+
+	// A degenerate image has no pixels to detect edges in.
+	if img.Bounds().Dx() == 0 || img.Bounds().Dy() == 0 {
+		return image.NewRGBA(img.Bounds())
+	}
 
 	out := Gaussian(img, b)
 
-	hyp, deg := intencityGradient(out)
-	max := nonMaximumSuppression(hyp, deg, img.Bounds().Max.X)
+	hyp, deg := intensityGradient(out)
+	suppressed := nonMaximumSuppression(hyp, deg, img.Bounds().Dx())
 
 	for y, i := img.Bounds().Min.Y, 0; y < img.Bounds().Max.Y; y++ {
 		for x := img.Bounds().Min.X; x < img.Bounds().Max.X; x, i = x+1, i+1 {
 
-			o := (y*img.Bounds().Max.X + x) * 4
+			o := out.PixOffset(x, y)
 
-			if max[i] > t {
+			if suppressed[i] > t {
 				out.Pix[o+0] = 0xFF
 				out.Pix[o+1] = 0xFF
 				out.Pix[o+2] = 0xFF
@@ -39,13 +46,13 @@ func Edge(img image.Image, t, b int) image.Image {
 	return out
 }
 
-// IntencityGradient returns the image intensities and their direction.
-// Image intensities are processed using the Sorbel operator.
+// intensityGradient returns the image intensities and their direction.
+// Image intensities are processed using the Sobel operator.
 // https://en.wikipedia.org/wiki/Sobel_operator
-func intencityGradient(img image.Image) ([]int, []int) {
+func intensityGradient(img image.Image) ([]int, []int) {
 
-	hyp := make([]int, 0, img.Bounds().Max.X*img.Bounds().Max.Y)
-	deg := make([]int, 0, img.Bounds().Max.X*img.Bounds().Max.Y)
+	hyp := make([]int, 0, img.Bounds().Dx()*img.Bounds().Dy())
+	deg := make([]int, 0, img.Bounds().Dx()*img.Bounds().Dy())
 
 	for y := img.Bounds().Min.Y; y < img.Bounds().Max.Y; y++ {
 		for x := img.Bounds().Min.X; x < img.Bounds().Max.X; x++ {
@@ -80,7 +87,7 @@ func intencityGradient(img image.Image) ([]int, []int) {
 	return hyp, deg
 }
 
-// NonMaximumSuppression thins the edge.
+// nonMaximumSuppression thins the edge.
 // See Non-maximum suppression at https://en.wikipedia.org/wiki/Canny_edge_detector
 func nonMaximumSuppression(hyp, deg []int, width int) (out []int) {
 
@@ -101,8 +108,8 @@ func nonMaximumSuppression(hyp, deg []int, width int) (out []int) {
 				w = hyp[i-1]
 			}
 
-			// Don't wrap and don't overlow.
-			if i+1%width != 0 && i+1 < len(hyp) {
+			// Don't wrap and don't overflow.
+			if (i+1)%width != 0 && i+1 < len(hyp) {
 				e = hyp[i+1]
 			}
 
@@ -134,11 +141,12 @@ func nonMaximumSuppression(hyp, deg []int, width int) (out []int) {
 
 			nw, se := 0, 0
 
-			if i-1%width != 0 && i-width-1 >= 0 {
+			// Don't wrap (nw is on the left edge, se on the right) and don't overflow.
+			if i%width != 0 && i-width-1 >= 0 {
 				nw = hyp[i-width-1]
 			}
 
-			if i+1%width != 0 && i+width+1 < len(hyp) {
+			if (i+1)%width != 0 && i+width+1 < len(hyp) {
 				se = hyp[i+width+1]
 			}
 
@@ -152,11 +160,12 @@ func nonMaximumSuppression(hyp, deg []int, width int) (out []int) {
 
 			ne, sw := 0, 0
 
-			if i-width+1 >= 0 {
+			// Don't wrap (ne is on the right edge, sw on the left) and don't overflow.
+			if (i+1)%width != 0 && i-width+1 >= 0 {
 				ne = hyp[i-width+1]
 			}
 
-			if i+width-1 < len(hyp) {
+			if i%width != 0 && i+width-1 < len(hyp) {
 				sw = hyp[i+width-1]
 			}
 
@@ -174,30 +183,30 @@ func nonMaximumSuppression(hyp, deg []int, width int) (out []int) {
 	return
 }
 
-// XG calculates the horizontal derivative approximation at x,y coordinates.
-// The horizontal Sorbel kernel.
+// xG calculates the horizontal derivative approximation at x,y coordinates.
+// The horizontal Sobel kernel.
 func xG(a image.Image, x, y int) int {
 	k := []int{-1, 0, 1, -2, 0, 2, -1, 0, 1}
 	return processKern(k, a, x, y)
 }
 
-// XG calculates the vertical derivative approximation at x,y coordinates.
-// The vertical Sorbel kernel.
+// yG calculates the vertical derivative approximation at x,y coordinates.
+// The vertical Sobel kernel.
 func yG(a image.Image, x, y int) int {
 	k := []int{-1, -2, -1, 0, 0, 0, 1, 2, 1}
 	return processKern(k, a, x, y)
 }
 
-// ProcessKern processes the given kernel on the x,y coordinates while respecting image boundaries.
+// processKern convolves the given 3x3 kernel with the luminance of the pixels
+// around x,y. Coordinates outside the image are clamped to the nearest edge
+// pixel by CalcLum, so the kernel indices always line up with the sampled
+// neighbors, including on the border.
 func processKern(k []int, img image.Image, x, y int) int {
 
 	c, xg := 0, 0
-	sx, sy, ex, ey := CalcBounds(img, x, y, 1)
-
-	for y := sy; y <= ey; y++ {
-		for x := sx; x <= ex; x++ {
-			avg := CalcLum(img, x, y)
-			xg += k[c] * avg
+	for dy := -1; dy <= 1; dy++ {
+		for dx := -1; dx <= 1; dx++ {
+			xg += k[c] * CalcLum(img, x+dx, y+dy)
 			c++
 		}
 	}
