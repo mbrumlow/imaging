@@ -1,3 +1,5 @@
+// Command blur applies a Gaussian blur to an image and writes the result to
+// out.png. Usage: blur -in <path> [-b <passes>].
 package main
 
 import (
@@ -10,6 +12,8 @@ import (
 
 	"github.com/mbrumlow/imaging"
 
+	// Register additional decoders so -in can point at JPEG or PPM files
+	// (PNG is already registered by image/png above).
 	_ "image/jpeg"
 
 	_ "github.com/mbrumlow/ppm"
@@ -44,6 +48,8 @@ func main() {
 	}
 }
 
+// loadImage opens and decodes the image at path p using whichever registered
+// decoder matches the file format.
 func loadImage(p string) (image.Image, error) {
 
 	f, err := os.Open(p)

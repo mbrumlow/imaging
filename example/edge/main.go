@@ -1,3 +1,6 @@
+// Command edge runs Canny edge detection on an image and writes the resulting
+// black-and-white edge map to out.png.
+// Usage: edge -in <path> [-t <threshold>] [-b <blur passes>].
 package main
 
 import (
@@ -10,6 +13,8 @@ import (
 
 	"github.com/mbrumlow/imaging"
 
+	// Register additional decoders so -in can point at JPEG or PPM files
+	// (PNG is already registered by image/png above).
 	_ "image/jpeg"
 
 	_ "github.com/mbrumlow/ppm"
@@ -45,6 +50,8 @@ func main() {
 	}
 }
 
+// loadImage opens and decodes the image at path p using whichever registered
+// decoder matches the file format.
 func loadImage(p string) (image.Image, error) {
 
 	f, err := os.Open(p)
